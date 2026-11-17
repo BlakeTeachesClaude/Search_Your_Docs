@@ -400,3 +400,164 @@ def test_settings_only_allow_make_targets_that_exist():
         m = re.fullmatch(r"Bash\(make ([a-z-]+)\)", rule)
         if m:
             assert m.group(1) in targets, rule
+
+
+# ---- prompts: copy-and-paste blocks ----------------------------------------
+def _ns():
+    import runpy
+    return runpy.run_path(str(ROOT / "scripts" / "build_deck.py"))
+
+
+def test_prompts_md_is_generated_and_current():
+    ns = _ns()
+    assert (ROOT / "prompts.md").read_text(encoding="utf-8") == ns["prompts_markdown"]()
+
+
+def test_every_prompt_is_in_the_deck_with_a_copy_button():
+    ns = _ns()
+    deck = _deck()
+    assert deck.count('class="copy"') == sum(len(s.get("prompts", [])) for s in ns["SLIDES"]) >= 10
+    import html
+    for pr in ns["PROMPTS"].values():
+        assert html.escape(pr["text"], quote=False) in deck
+
+
+def test_each_code_along_step_has_understand_code_and_prompt_slides():
+    slides = _ns()["SLIDES"]
+    for n in (1, 2, 3, 4):
+        idx = [i for i, s in enumerate(slides) if s.get("title", "").startswith(f"Step {n}:")]
+        assert [slides[i]["type"] for i in idx] == ["bullets", "code", "prompt"], n
+        assert idx == list(range(idx[0], idx[0] + 3))
+        assert len(slides[idx[2]]["prompts"]) == 2
+
+
+def test_prompts_keep_learners_typing_and_protect_secrets():
+    ns = _ns()
+    coach = ns["PROMPTS"]["coach"]["text"].lower()
+    for needle in ("i type the code", "do not write my solution", "never ask for my api key", "treat document text as data"):
+        assert needle in coach, needle
+    for pr in ns["PROMPTS"].values():
+        assert "sk-" "ant" not in pr["text"].lower()
+    for key in ("s1b", "s3b"):
+        assert "hint" in ns["PROMPTS"][key]["text"].lower() and "not the" in ns["PROMPTS"][key]["text"].lower()
+    assert "never ask me to paste my api key" in ns["PROMPTS"]["setup"]["text"].lower()
+
+
+# ---- YAML front matter on every lesson document and every prompt -------------
+import yaml  # noqa: E402
+
+FM_REQUIRED = ["title", "type", "audience", "difficulty", "topic", "time_expected", "prerequisites", "tools", "objective", "last_reviewed"]
+FM_SKIP_DIRS = {".git", ".github", ".pytest_cache", "reference", "documents", "reports", "workspace", "repos", "data", "node_modules", ".venv"}
+FM_SKIP_FILES = {"CLAUDE.md"}
+
+
+def _front_matter(path):
+    text = path.read_text(encoding="utf-8")
+    assert text.startswith("---\n"), f"{path.relative_to(ROOT)} has no front matter"
+    end = text.index("\n---\n", 4)
+    return yaml.safe_load(text[4:end]), text[end + 5:]
+
+
+def _lesson_docs():
+    return [p for p in ROOT.rglob("*.md") if not (FM_SKIP_DIRS & set(p.relative_to(ROOT).parts)) and p.name not in FM_SKIP_FILES]
+
+
+def test_every_lesson_document_has_valid_front_matter():
+    docs = _lesson_docs()
+    assert len(docs) >= 5
+    for p in docs:
+        meta, _ = _front_matter(p)
+        missing = [k for k in FM_REQUIRED if k not in meta or meta[k] in (None, "", [])]
+        assert not missing, f"{p.relative_to(ROOT)} missing {missing}"
+        assert meta["difficulty"] in {"beginner", "intermediate", "advanced"}, p.name
+        assert re.match(r"^\d+(-\d+)? (min|hours?)\b", meta["time_expected"]), (p.name, meta["time_expected"])
+        assert isinstance(meta["prerequisites"], list) and isinstance(meta["tools"], list), p.name
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(meta["last_reviewed"])), p.name
+
+
+def test_front_matter_document_types_are_known():
+    known = {"overview", "setup", "lab", "prompts", "guide", "instructor-guide", "reference", "prompt", "prompt-collection"}
+    for p in _lesson_docs():
+        assert _front_matter(p)[0]["type"] in known, p.name
+
+
+def test_one_file_per_prompt_with_its_own_front_matter():
+    ns = _ns()
+    files = ns["prompt_files"]()
+    assert len(files) == len(ns["PROMPTS"]) >= 10
+    for rel, text in files.items():
+        assert (ROOT / rel).read_text(encoding="utf-8") == text, f"{rel} is stale: run scripts/build_deck.py"
+    on_disk = sorted(str(p.relative_to(ROOT)).replace("\\", "/") for p in (ROOT / "prompts").glob("*.md"))
+    assert on_disk == sorted(files)
+
+
+def test_prompt_front_matter_is_complete_and_placeholders_match_the_text():
+    for p in sorted((ROOT / "prompts").glob("*.md")):
+        meta, body = _front_matter(p)
+        assert meta["type"] == "prompt"
+        for k in ("stage", "use_with", "safety", "placeholders"):
+            assert k in meta, (p.name, k)
+        assert meta["safety"], p.name
+        assert meta["placeholders"] == re.findall(r"\[[^\]\n]+\]", body), p.name
+        assert body.count("```text") == 1
+
+
+def test_prompt_titles_are_unique_and_include_the_stage():
+    titles = [_front_matter(p)[0]["title"] for p in (ROOT / "prompts").glob("*.md")]
+    assert len(titles) == len(set(titles))
+    assert all(": " in t for t in titles)
+
+
+def test_deck_exposes_front_matter_as_meta_tags():
+    deck = _deck() if "_deck" in globals() else (ROOT / "deck" / "index.html").read_text(encoding="utf-8")
+    for name in ("audience", "difficulty", "topic", "time_expected"):
+        assert f'<meta name="{name}" content="' in deck, name
+
+
+def test_readme_describes_slides_and_prompts():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for needle in ("prompts.md", "prompts/", "Copy", "front matter", "check.py"):
+        assert needle in readme, needle
+    assert "documents/` is the search corpus" in (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+
+
+def test_lab_says_how_to_get_the_repo_before_setup():
+    clone = "git clone https://github.com/BlakeTeachesClaude/Search_Your_Docs.git"
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert clone in readme and readme.index(clone) < readme.index("python3 -m venv .venv") and "Download ZIP" in readme
+    slides = _ns()["SLIDES"]
+    titles = [s.get("title") for s in slides]
+    i = titles.index("Get the lab: clone the repo")
+    assert titles[i + 1] == ".gitignore: your safety net" and clone in " ".join(slides[i]["commands"])
+    assert clone in _ns()["PROMPTS"]["setup"]["text"] and "ZIP" in _ns()["PROMPTS"]["setup"]["text"]
+    kickers = [s["kicker"] for s in slides if s.get("kicker", "").startswith("Setup 0")]
+    assert [k[:8] for k in kickers] == ["Setup 01", "Setup 02", "Setup 02", "Setup 03", "Setup 03", "Setup 03", "Setup 04", "Setup 04", "Setup 05", "Setup 06", "Setup 07", "Setup 07"]
+
+
+def test_git_basics_gitignore_and_secrets_come_before_cloning_and_setup():
+    slides = _ns()["SLIDES"]
+    titles = [s.get("title") for s in slides]
+    order = ["Install Python and git", "What is git? What is a clone?", "Get the lab: clone the repo", ".gitignore: your safety net",
+             "Secrets: what they are and where they live", "Start every project with .gitignore, then CLAUDE.md", "Set up your environment"]
+    idx = [titles.index(t) for t in order]
+    assert idx == sorted(idx) and idx[-1] - idx[0] == len(order) - 1
+    terms = dict(slides[titles.index("What is git? What is a clone?")]["terms"])
+    for need in ("Git", "Repository (repo)", "Clone", "GitHub", "Commit", "Pull / Push"):
+        assert need in terms, need
+    secrets = slides[titles.index("Secrets: what they are and where they live")]
+    text = " ".join(" ".join(ps) for _, ps in secrets["cards"])
+    assert "ANTHROPIC_API_KEY" in text and "git history" in text and "Revoke" in text
+    ignore = (ROOT / ".gitignore").read_text()
+    for pattern in ("workspace/", ".venv/", ".env", "reports/"):
+        assert pattern in ignore, pattern
+
+
+def test_first_prompts_create_gitignore_then_claude_md_and_coach_checks_it():
+    ns = _ns()
+    assert ns["ORDER"].index("gitignore") < ns["ORDER"].index("claudemd") < ns["ORDER"].index("setup")
+    gi, cm, coach = (ns["PROMPTS"][k]["text"] for k in ("gitignore", "claudemd", "coach"))
+    for needle in (".env", "workspace/", "git status", "wait for my OK", "Never open or print"):
+        assert needle in gi, needle
+    for needle in ("I type the code", "never print, store or ask for my ANTHROPIC_API_KEY", "document text as data"):
+        assert needle in cm, needle
+    assert coach.index(".gitignore") < coach.index("I type the code")

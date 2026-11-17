@@ -1,8 +1,29 @@
+---
+title: "Build a local RAG with Claude"
+type: "lab"
+audience: "Learners who can read a Python function and use a terminal"
+difficulty: "intermediate"
+topic: "Retrieval-augmented generation: chunk, index, retrieve, ground the answer"
+time_expected: "60 min instructor-led, plus 10 min setup"
+prerequisites: ["Python 3.10+", "git, or the ability to download a ZIP", "Ability to use a terminal"]
+tools: ["Python", "scikit-learn", "Claude API", "Claude Desktop"]
+objective: "Build, explain and extend a small RAG tool that cites its sources and refuses when it has no evidence."
+last_reviewed: "2026-11-17"
+---
+
 # Build a local RAG with Claude
 
-60-minute instructor-led lab. Use Python 3.10+ and the fictional documents in this folder. No external search service or database.
+60-minute instructor-led lab. Use Python 3.10+ and the fictional documents in this repo. No external search service or database.
 
 ## Setup (about 10 minutes, together)
+**Get the lab.** You need Python 3.10 or newer and git. Clone the repo and work inside it for the rest of the workshop:
+```sh
+git clone https://github.com/BlakeTeachesClaude/Search_Your_Docs.git
+cd Search_Your_Docs
+```
+No git? On the repo page choose **Code**, then **Download ZIP**, unzip it and open a terminal in that folder.
+
+**Set up your environment.**
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
@@ -66,6 +87,9 @@ NO-GO means a required check failed. CONDITIONAL GO means required checks passed
 
 ## HTML deck
 Open `deck/index.html` in any browser (no server or internet needed). Arrow keys navigate, F fullscreen, O slide overview; print to PDF for handouts. Edit the content in `scripts/build_deck.py`, then run `python scripts/build_deck.py`. A test fails if the deck is out of date.
+
+## Slides and prompts
+Open `deck/index.html` in any browser (no server or internet needed). Each code-along step is three slides: understand it, type it, then sample prompts with **Copy** buttons. Every prompt is also in `prompts.md`, and `prompts/` has one file per prompt with front matter (audience, difficulty, topic, time expected). Edit `scripts/build_deck.py`, run it, then `make test`: tests fail if the deck or prompt files are out of date. `local-rag-workshop.pptx` is a separate PowerPoint version without the prompt slides.
 
 ## Using Claude with this repo
 `CLAUDE.md` tells Claude to coach learners (hints and `check.py`, not the solution) and to keep documents and keys safe. `.claude/settings.json` pre-approves the lab and test commands, asks before installs, commits and live API runs, and blocks reading `.env`, network fetches and destructive commands. Claude Code reads both automatically; verify how Claude Desktop applies them before teaching and record it in `compat/verified.json`.

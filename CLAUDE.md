@@ -21,7 +21,8 @@ A 60-minute instructor-led lab. Learners build a small retrieval-augmented gener
 - `make test` offline regression suite (Claude API mocked); `make smoke` go/no-go report; `make smoke-live` adds a real API call (spends tokens)
 
 ## Maintaining this repo
-- `deck/index.html` is generated. Edit `scripts/build_deck.py`, then run it. A test fails if they differ.
+- `deck/index.html`, `prompts.md` and `prompts/` are generated. Edit `scripts/build_deck.py`, then run it. A test fails if they differ.
+- Every lesson document has YAML front matter (audience, difficulty, topic, time_expected, prerequisites, tools, objective, last_reviewed). Keep it accurate when you change a document, and bump `last_reviewed`. `documents/` is the search corpus and deliberately has none.
 - The four code slides are the single source of truth: the tests type them into a fresh workspace and run the checks. If you change a slide, run `make test`.
 - Keep sample data fictional. No real company data, internal material, keys or personal paths in any file. The instructor bio on the "Who I am" slide is the one place employer names appear.
 - `workspace/`, `reports/` and `.venv/` are git-ignored; never commit them.
