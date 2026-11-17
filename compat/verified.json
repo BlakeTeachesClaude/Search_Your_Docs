@@ -1,0 +1,9 @@
+{
+  "_comment": "Manual compatibility sign-off. After walking the lab on a surface, set last_verified (YYYY-MM-DD), version, and verified_by. Smoke reports a warning when a date is missing or older than max_age_days.",
+  "max_age_days": 60,
+  "surfaces": {
+    "claude_api": {"what": "Messages API + ANTHROPIC_MODEL named in README works", "last_verified": null, "version": null, "verified_by": null},
+    "claude_code": {"what": "Learner can build rag.py step by step with Claude Code", "last_verified": null, "version": null, "verified_by": null},
+    "claude_desktop": {"what": "Instructor demo / Cowork flow still matches the deck", "last_verified": null, "version": null, "verified_by": null}
+  }
+}
